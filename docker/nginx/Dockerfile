@@ -5,7 +5,7 @@ FROM nginx:alpine
 COPY nginx.conf /etc/nginx/nginx.conf
 
 # Expose port 80 (default HTTP port)
-EXPOSE 80
+EXPOSE ${NGINX_HOST_HTTP_PORT}
 
 # Start Nginx when the container starts
 CMD ["nginx", "-g", "daemon off;"]
