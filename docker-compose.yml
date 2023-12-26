@@ -1,0 +1,86 @@
+version: "3.9"
+services:
+  redis:
+    image: redis:6-alpine
+    build:
+      context: "docker/redis"
+      dockerfile: "Dockerfile"
+    volumes:
+      - redis_volume:/data
+    ports:
+      - ${REDIS_PORT}:6379
+    networks:
+      - backend
+  mysql:
+    build:
+      context: "docker/mysql"
+      dockerfile: "Dockerfile"
+      args:
+        - MYSQL_VERSION=${MYSQL_VERSION}
+    command: --default-authentication-plugin=mysql_native_password
+    restart: always
+    environment:
+      - MYSQL_DATABASE=${MYSQL_DB_NAME}
+      - MYSQL_USER=${MYSQL_USER}
+      - MYSQL_PASSWORD=${MYSQL_PASSWORD}
+      - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD}
+      - TZ=${WORKSPACE_TIMEZONE}
+    ports:
+      - '${MYSQL_PORT}:3306'
+    expose:
+      - '${MYSQL_PORT}'
+    volumes:
+      - mysql_volume:/var/lib/mysql
+    networks:
+      - backend
+  adonis_app:
+    container_name: adonis_app
+    restart: always
+    depends_on:
+      - mysql
+      - redis
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: dependencies
+    ports:
+      - ${PORT}:${PORT}
+      - "9229:9229"
+    env_file:
+      - .env
+    environment:
+      - MYSQL_HOST=mysql
+      - REDIS_HOST=redis
+    volumes:
+      - ./:/home/node/app
+    command: dumb-init node ace serve --watch --node-args="--inspect=0.0.0.0"
+    networks:
+      - frontend
+      - backend
+  nginx:
+    image: nginx:1.23-alpine
+    build:
+      context: 'docker/nginx'
+      dockerfile: Dockerfile
+    ports:
+      - "${NGINX_HOST_HTTP_PORT}:80"
+    volumes:
+      - nginx_volume:/etc/nginx
+    restart: always
+    depends_on:
+      - adonis_app
+    networks:
+      - frontend
+      - backend
+networks:
+  frontend:
+    driver: bridge
+  backend:
+    driver: bridge
+volumes:
+  nginx_volume:
+    driver: local
+  mysql_volume:
+    driver: local
+  redis_volume:
+    driver: local
